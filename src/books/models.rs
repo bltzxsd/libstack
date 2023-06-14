@@ -1,18 +1,15 @@
-use crate::schema::books;
+use crate::{errors::LibError, schema::books};
 
+use actix_web::error::ErrorInternalServerError;
+use anyhow::Context;
 use anyhow::Result;
-use diesel::AsChangeset;
-use diesel::ExpressionMethods;
-use diesel::OptionalExtension;
-use diesel::PgConnection;
-use diesel::QueryDsl;
-use diesel::RunQueryDsl;
-use diesel::Selectable;
+use diesel::{
+    prelude::{Insertable, Queryable},
+    AsChangeset, ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
+    Selectable,
+};
 
-use diesel::prelude::Insertable;
-use diesel::prelude::Queryable;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Insertable, Deserialize)]
@@ -43,7 +40,7 @@ pub fn add_book(
     publication_year: i32,
     isbn: &str,
     available: bool,
-    conn: &mut PgConnection
+    conn: &mut PgConnection,
 ) -> Result<uuid::Uuid> {
     let book = NewBook {
         title: title.to_string(),
@@ -53,22 +50,43 @@ pub fn add_book(
         availability_status: available,
     };
 
-    let book_id = diesel
-        ::insert_into(books::table)
+    let book_id = diesel::insert_into(books::table)
         .values(&book)
         .returning(books::book_id)
         .get_result(conn)?;
     Ok(book_id)
 }
 
-pub fn get_book(id: uuid::Uuid, conn: &mut PgConnection) -> Result<Option<Book>> {
-    let book = books::table.filter(books::book_id.eq(id)).first::<Book>(conn).optional()?;
+pub fn update_book_status(id: uuid::Uuid, new_val: bool, conn: &mut PgConnection) -> Result<usize> {
+    // match diesel::update(books::table.filter(books::book_id.eq(id)))
+    //     .set(books::availability_status.eq(&new_val))
+    //     .execute(conn)
+    // {
+    //     Ok(_) => HttpResponse::Ok().finish(),
+    //     Err(e) => HttpResponse::InternalServerError()
+    //         .json(format!("failed to update book {e} availability")),
+    // }
+    diesel::update(books::table.filter(books::book_id.eq(id)))
+        .set(books::availability_status.eq(&new_val))
+        .execute(conn)
+        .with_context(|| {
+            LibError::ActixError(
+                ErrorInternalServerError(format!("failed to update book {id} status")).to_string(),
+            )
+        })
+}
 
-    Ok(book)
+pub fn get_book(id: uuid::Uuid, conn: &mut PgConnection) -> Result<Option<Book>> {
+    Ok(books::table
+        .filter(books::book_id.eq(id))
+        .first::<Book>(conn)
+        .optional()?)
 }
 
 pub fn update_book(id: uuid::Uuid, payload: NewBook, conn: &mut PgConnection) -> Result<bool> {
-    use crate::schema::books::dsl::*;
+    use crate::schema::books::dsl::{
+        author, availability_status, book_id, books, isbn, publication_year, title,
+    };
 
     let num_updated = diesel::update(books.filter(book_id.eq(id)))
         .set((
@@ -84,10 +102,9 @@ pub fn update_book(id: uuid::Uuid, payload: NewBook, conn: &mut PgConnection) ->
 }
 
 pub fn delete_book(id: uuid::Uuid, conn: &mut PgConnection) -> Result<()> {
-    let num_deleted = diesel
-        ::delete(books::dsl::books.filter(books::book_id.eq(id)))
-        .execute(conn)?;
-    if !(num_deleted > 0) {
+    let num_deleted: usize =
+        diesel::delete(books::dsl::books.filter(books::book_id.eq(id))).execute(conn)?;
+    if num_deleted == 0 {
         return Err(anyhow::anyhow!("Could not delete book."));
     }
     Ok(())
