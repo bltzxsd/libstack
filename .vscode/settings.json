@@ -2,5 +2,9 @@
     "rust-analyzer.linkedProjects": [
         ".\\Cargo.toml",
     ],
-    "rust-analyzer.showUnlinkedFileNotification": false
+    "rust-analyzer.showUnlinkedFileNotification": false, 
+    "rust-analyzer.rustfmt.extraArgs": [
+        "edition", "2022", 
+        "use_field_init_shorthand","true",
+    ]
 }
