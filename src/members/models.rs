@@ -1,15 +1,11 @@
 use anyhow::Result;
-use diesel::ExpressionMethods;
-use diesel::OptionalExtension;
-use diesel::QueryDsl;
-use diesel::RunQueryDsl;
-use diesel::Selectable;
-use diesel::PgConnection;
-use diesel::AsChangeset;
-use diesel::prelude::Insertable;
-use diesel::prelude::Queryable;
+use diesel::{
+    prelude::{Insertable, Queryable},
+    AsChangeset, ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
+    Selectable,
+};
 
-use serde::{ Deserialize, Serialize };
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::schema::members;
@@ -38,7 +34,7 @@ pub fn add_member(
     name: &str,
     email: &str,
     privilege: bool,
-    conn: &mut PgConnection
+    conn: &mut PgConnection,
 ) -> Result<uuid::Uuid> {
     let member = NewMember {
         name: name.to_string(),
@@ -47,8 +43,7 @@ pub fn add_member(
         privilege,
     };
 
-    let member_id = diesel
-        ::insert_into(members::table)
+    let member_id = diesel::insert_into(members::table)
         .values(&member)
         .returning(members::dsl::member_id)
         .get_result(conn)?;
@@ -57,25 +52,30 @@ pub fn add_member(
 }
 
 pub fn get_member(id: uuid::Uuid, conn: &mut PgConnection) -> Result<Option<Member>> {
-    Ok(members::table.filter(members::member_id.eq(id)).first(conn).optional()?)
+    Ok(members::table
+        .filter(members::member_id.eq(id))
+        .first(conn)
+        .optional()?)
 }
 
 pub fn update_member(id: Uuid, payload: NewMember, conn: &mut PgConnection) -> Result<bool> {
-    use crate::schema::members::dsl::*;
+    use crate::schema::members::dsl::{borrowed, email, member_id, members, name};
 
-    let num_updated = diesel
-        ::update(members.filter(member_id.eq(id)))
-        .set((name.eq(payload.name), email.eq(payload.email), borrowed.eq(payload.borrowed)))
+    let num_updated = diesel::update(members.filter(member_id.eq(id)))
+        .set((
+            name.eq(payload.name),
+            email.eq(payload.email),
+            borrowed.eq(payload.borrowed),
+        ))
         .execute(conn)?;
 
     Ok(num_updated > 0)
 }
 
 pub fn delete_member(id: uuid::Uuid, conn: &mut PgConnection) -> Result<()> {
-    let num_deleted = diesel
-        ::delete(members::dsl::members.filter(members::member_id.eq(id)))
-        .execute(conn)?;
-    if !(num_deleted > 0) {
+    let num_deleted: usize =
+        diesel::delete(members::dsl::members.filter(members::member_id.eq(id))).execute(conn)?;
+    if num_deleted == 0 {
         return Err(anyhow::anyhow!("Could not delete book."));
     }
     Ok(())
