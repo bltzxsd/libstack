@@ -1,5 +1,11 @@
 // @generated automatically by Diesel CLI.
 
+pub mod sql_types {
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "loan_status"))]
+    pub struct LoanStatus;
+}
+
 diesel::table! {
     books (book_id) {
         book_id -> Uuid,
@@ -12,6 +18,9 @@ diesel::table! {
 }
 
 diesel::table! {
+    use diesel::sql_types::*;
+    use super::sql_types::LoanStatus;
+
     loans (loan_id) {
         loan_id -> Uuid,
         member_id -> Uuid,
@@ -19,7 +28,7 @@ diesel::table! {
         loan_date -> Date,
         due_date -> Date,
         return_date -> Nullable<Date>,
-        fine -> Nullable<Int4>,
+        status -> LoanStatus,
     }
 }
 
@@ -36,4 +45,8 @@ diesel::table! {
 diesel::joinable!(loans -> books (book_id));
 diesel::joinable!(loans -> members (member_id));
 
-diesel::allow_tables_to_appear_in_same_query!(books, loans, members,);
+diesel::allow_tables_to_appear_in_same_query!(
+    books,
+    loans,
+    members,
+);
