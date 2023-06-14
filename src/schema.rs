@@ -45,8 +45,4 @@ diesel::table! {
 diesel::joinable!(loans -> books (book_id));
 diesel::joinable!(loans -> members (member_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    books,
-    loans,
-    members,
-);
+diesel::allow_tables_to_appear_in_same_query!(books, loans, members,);
